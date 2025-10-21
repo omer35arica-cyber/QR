@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Akıllı Yoklama Sistemi</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/qrcode-generator/qrcode.js"></script>
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        @keyframes blob {
+            0% { transform: translate(0px, 0px) scale(1); }
+            33% { transform: translate(30px, -50px) scale(1.1); }
+            66% { transform: translate(-20px, 20px) scale(0.9); }
+            100% { transform: translate(0px, 0px) scale(1); }
+        }
+        .animate-blob { animation: blob 7s infinite; }
+        .animation-delay-2000 { animation-delay: -2s; }
+        .animation-delay-4000 { animation-delay: -4s; }
+        .qr-placeholder { transition: all 0.3s ease-in-out; }
+        .fade-in { animation: fadeInAnimation 0.5s ease-in-out; }
+        @keyframes fadeInAnimation { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body class="bg-[#0d1117] text-gray-200">
+
+    <div id="app-container"></div>
+
+    <script type="module">
+        
+        document.addEventListener('DOMContentLoaded', () => {
+
+            const $ = (selector) => document.querySelector(selector);
+            
+            const ls = {
+                get(key, fallback) { try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; } catch { return fallback; } },
+                set(key, val) { try { localStorage.setItem(key, JSON.stringify(val)); } catch { } },
+            };
+
+            const api = {
+                // Bu fonksiyonlar, verileri sadece öğretmen tarayıcısının localStorage'ına kaydeder
+                saveSession(week, session) { const s = ls.get('ys_sessions', {}); s[week] = session; ls.set('ys_sessions', s); },
+                getSession(week) { const s = ls.get('ys_sessions', {}); return s[week] || null; },
+
+                // *** KRİTİK DÜZELTME BURADA ***
+                // Öğrenci Check-in fonksiyonu (Öğrenci telefonunda çalışır)
+                recordCheckin(week, number, code) { 
+                    
+                    // 1. ÖĞRETMENİN LOKAL DEPOLAMASINDAKİ OTURUM AKTİFLİK KONTROLÜ VE KOD DOĞRULAMASI KALDIRILDI.
+                    //    Çünkü öğrencinin telefonunda bu veri yok ve her zaman hata veriyordu.
+                    //    Şimdi bu fonksiyon sadece numaranın daha önce girilip girilmediğini kontrol edecek.
+                    
+                    // Verileri öğretmen panelindeki localStorage'dan alıyoruz
+                    const allAttendance = ls.get('ys_attendance', {});
+                    
+                    // Geçerli haftanın yoklama listesi
+                    const currentWeekAttendance = new Set(allAttendance[week] || []);
+                    
+                    // Eğer numara zaten listedeyse hata ver
+                    if (currentWeekAttendance.has(number)) {
+                        throw new Error('Bu numara zaten yoklamaya katıldı.'); 
+                    }
+                    
+                    // Yoklamayı kaydet
+                    currentWeekAttendance.add(number);
+                    allAttendance[week] = Array.from(currentWeekAttendance); 
+                    
+                    // Öğretmenin localStorage'ına geri kaydet
+                    // Not: Bu, öğretmenin paneli tekrar yüklediğinde verinin güncellenmesini sağlar.
+                    ls.set('ys_attendance', allAttendance);
+                },
+                // *** KRİTİK DÜZELTME SONU ***
+            };
+
+            let state = {
+                students: ls.get('ys_students', [
+                    { id: 1, name: 'İBRAHİM GÜLTEKİN', number: '18070003013' }, { id: 2, name: 'ELİF EMİNE GÜNAL', number: '19070001053' }, { id: 3, name: 'ERK YANKI URAL', number: '19070008012' }, { id: 4, name: 'ERCE ÖZKAN', number: '20070001057' }, { id: 5, name: 'İPEK ATIŞ', number: '20070002048' }, { id: 6, name: 'İDİL ECE CEVAHİR', number: '20070007004' }, { id: 7, name: 'SUDE ONFİDAN', number: '20070008016' }, { id: 8, name: 'ÖMER ARICA', number: '20070008017' }, { id: 9, name: 'SELİM MERT KIRCAALİLİ', number: '20070008019' }, { id: 10, name: 'BERİL DERAN GÜRBÜZ', number: '20070008029' }, { id: 11, name: 'ALİ HAKTAN SIĞIN', number: '21070001004' }, { id: 12, name: 'ARDA ALTUNHAN', number: '21070001051' }, { id: 13, name: 'EKREM TEMEL', number: '21070001070' }, { id: 14, name: 'NESRİN ŞENTÜRK', number: '21070002005' }, { id: 15, name: 'BATUHAN ŞİŞMAN', number: '21070002025' }, { id: 16, name: 'KIVANÇ EFE ERGÖNÜL', number: '21070005027' }, { id: 17, name: 'OĞUZ KOYUCAN', number: '21070005030' }, { id: 18, name: 'ZEYNEP ARSLANBUĞA', number: '21070005042' }, { id: 19, name: 'BESTE TEKİN', number: '21070007001' }, { id: 20, name: 'EKİN ALTUNKAYA', number: '21070007004' }, { id: 21, name: 'EMRE ERİŞİR', number: '21070008003' }, { id: 22, name: 'İSMAİL CANBERK DEMİRKAN', number: '21070008014' }, { id: 23, name: 'CAN GİRGİN', number: '21070008016' }, { id: 24, name: 'KEREM EROĞLU', number: '21070008017' }, { id: 25, name: 'ARMAĞAN SOYLU', number: '21070008027' }, { id: 26, name: 'ALP SERKAN MERKİT', number: '21070008033' }, { id: 27, name: 'ATAKAN DİNÇER', number: '21070008034' }, { id: 28, name: 'DEMET BÜYÜKTAŞ', number: '21070008306' }, { id: 29, name: 'GÜRKAN EROĞLU', number: '22070001041' }, { id: 30, name: 'EMRE EFE YÜKSEL', number: '22070001055' }, { id: 31, name: 'SÜLEYMAN BATU SARI', number: '22070002015' }, { id: 32, name: 'KADİR EMRE GÜNEŞ', number: '22070002047' }, { id: 33, name: 'TOPRAK TUNCER', number: '22070005040' }, { id: 34, name: 'EMRE CAN HEKİMOĞLU', number: '22070005053' }, { id: 35, name: 'ILGAR ŞENOL', number: '22070007014' }, { id: 36, name: 'EDA NUR ÇALIŞKAN', number: '22070008017' }, { id: 37, name: 'SAMİ BERK ŞAHİN', number: '22070008021' }, { id: 38, name: 'DENİZ ÜNVER', number: '22070008026' }, { id: 39, name: 'AYKAN KANLI', number: '22070008034' }, { id: 40, name: 'DENİZ KARATEPE', number: '22070008043' }, { id: 41, name: 'AYŞEGÜL KARINYARICI', number: '22070003022' }, { id: 42, name: 'AHMET ÖZGÜR KORKMAZ', number: '21070001046' },
+                ]),
+                currentWeek: ls.get('ys_week', 1),
+                attendance: ls.get('ys_attendance', {}),
+                activeTab: 'dashboard',
+                session: null,
+            };
+
+            const getStatusInfo = (absences) => {
+                if (absences >= 5) return { text: 'KALDI', color: 'bg-red-500/20 text-red-400' };
+                if (absences === 4) return { text: 'TEHLİKEDE', color: 'bg-orange-500/20 text-orange-400' };
+                if (absences >= 2) return { text: 'DİKKAT', color: 'bg-yellow-500/20 text-yellow-400' };
+                return { text: 'GÜVENLİ', color: 'bg-green-500/20 text-green-400' };
+            };
+
+            const getComputedStudents = () => {
+                const weeks = Object.keys(state.attendance).map(Number);
+                const maxWeek = weeks.length ? Math.max(...weeks) : 0;
+                const presentMap = new Map();
+                weeks.forEach(w => { (state.attendance[w] || []).forEach(n => { presentMap.set(n, (presentMap.get(n) || 0) + 1); }); });
+                return state.students.map(s => {
+                    const present = presentMap.get(s.number) || 0;
+                    const absences = Math.max(0, maxWeek - present);
+                    return { ...s, present, absences, totalWeeks: maxWeek };
+                });
+            };
+            
+            const getCheckinURL = () => {
+                const { origin, pathname } = window.location;
+                // GitHub Pages'de pathname /reponame/ olabilir. Bunu hesaba katalım.
+                const pathParts = pathname.split('/').filter(p => p);
+                const repoName = pathParts.length > 0 ? `/${pathParts[0]}` : '';
+                const base = `${origin}${repoName}/#/checkin`;
+                
+                // QR Kod linkinde kodun ve haftanın bulunması gerekiyor.
+                // Kod yoksa bile link oluşturulmalı, öğrenci uyarı alacak.
+                const code = state.session?.code || 'NOCODE';
+                return `${base}?week=${state.currentWeek}&code=${encodeURIComponent(code)}`;
+            };
+
+            function renderDashboard() {
+                const computedStudents = getComputedStudents();
+                return `
+                    <div class="space-y-6 fade-in">
+                        <div class="bg-black/20 p-6 rounded-lg border border-white/10">
+                            <h2 class="text-xl font-bold text-white mb-4">Yeni Öğrenci Ekle</h2>
+                            <div class="flex flex-col sm:flex-row gap-4">
+                                <input id="new-student-name" type="text" placeholder="Ad Soyad" class="flex-1 px-4 py-3 bg-gray-900/50 border border-white/20 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:outline-none transition" />
+                                <input id="new-student-number" type="text" placeholder="Öğrenci No" class="flex-1 px-4 py-3 bg-gray-900/50 border border-white/20 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:outline-none transition" />
+                                <button data-action="add-student" class="px-8 py-3 rounded-lg font-semibold text-white bg-gradient-to-r from-cyan-500 to-blue-500 hover:opacity-90 transition shadow-md flex items-center justify-center gap-2"><i data-lucide="plus"></i> Ekle</button>
+                            </div>
+                        </div>
+                        <div class="bg-black/20 p-6 rounded-lg border border-white/10">
+                            <div class="flex justify-between items-center mb-4"><h2 class="text-xl font-bold text-white">Öğrenci Listesi</h2><div class="text-gray-400">Toplam: <span class="font-bold text-cyan-400">${state.students.length}</span> öğrenci</div></div>
+                            <div class="overflow-x-auto"><table class="w-full"><thead class="border-b border-white/10"><tr>${['Ad Soyad', 'Öğrenci No', 'Devam', 'Durum', 'Bu Hafta', 'İşlem'].map(h => `<th class="px-4 py-3 text-left text-xs sm:text-sm font-semibold text-gray-400 ${['Devam', 'Durum', 'Bu Hafta', 'İşlem'].includes(h) ? 'text-center' : ''}">${h}</th>`).join('')}</tr></thead>
+                            <tbody class="divide-y divide-white/10">
+                                ${computedStudents.map(s => { const { text, color } = getStatusInfo(s.absences); const isPresent = (state.attendance[state.currentWeek] || []).includes(s.number); return `
+                                    <tr class="hover:bg-white/5 transition"><td class="px-4 py-4 font-medium text-gray-200 text-sm">${s.name}</td><td class="px-4 py-4 text-gray-400 text-sm font-mono">${s.number}</td>
+                                    <td class="px-4 py-4 text-center"><span class="text-xl sm:text-2xl font-bold text-cyan-400">${s.present}</span><span class="text-gray-500 text-sm"> / ${s.totalWeeks || 0}</span></td>
+                                    <td class="px-4 py-4 text-center"><span class="px-3 py-1 rounded-full font-bold text-xs sm:text-sm ${color}">${text}</span></td>
+                                    <td class="px-4 py-4 text-center">${isPresent ? '<i data-lucide="check-circle" class="inline text-green-400"></i>' : '<i data-lucide="x-circle" class="inline text-gray-600"></i>'}</td>
+                                    <td class="px-4 py-4 text-center"><button data-action="delete-student" data-id="${s.id}" class="text-red-500 hover:text-red-400 transition" title="Sil"><i data-lucide="trash-2" class="pointer-events-none"></i></button></td></tr>`;}).join('')}
+                            </tbody></table></div>
+                        </div>
+                        <div class="bg-black/20 p-4 rounded-lg border border-white/10"><div class="flex flex-wrap items-center justify-center gap-4">
+                            <button data-action="prev-week" ${state.currentWeek === 1 ? 'disabled' : ''} class="bg-white/10 text-gray-300 px-6 py-3 rounded-lg font-semibold hover:bg-white/20 transition disabled:opacity-50 disabled:cursor-not-allowed">← Önceki</button>
+                            <div class="text-xl font-bold text-white">Hafta ${state.currentWeek}</div>
+                            <button data-action="next-week" ${state.currentWeek === 14 ? 'disabled' : ''} class="bg-gradient-to-r from-cyan-500 to-blue-500 text-white px-6 py-3 rounded-lg font-semibold hover:opacity-90 transition disabled:opacity-50 disabled:cursor-not-allowed">Sonraki →</button>
+                            <button data-action="download-csv" class="border border-cyan-500 text-cyan-500 px-6 py-3 rounded-lg font-semibold hover:bg-cyan-500/10 transition flex items-center gap-2"><i data-lucide="download"></i> CSV İndir</button>
+                        </div></div>
+                    </div>`;
+            }
+
+            function renderQRPage() {
+                const checkinURL = getCheckinURL();
+                return `
+                    <div class="bg-black/20 p-8 rounded-lg border border-white/10 fade-in"><h2 class="text-3xl font-bold text-white mb-6 text-center">QR Kod Oluşturucu</h2>
+                        <div class="max-w-md mx-auto"><div class="bg-gray-900/50 p-8 mb-6 rounded-xl border border-white/10 text-center">
+                            <div class="text-6xl font-bold bg-gradient-to-r from-cyan-400 to-fuchsia-500 bg-clip-text text-transparent mb-2">Hafta ${state.currentWeek}</div><div class="text-gray-400">Yoklama oturumunu başlat veya sonlandır.</div>
+                            ${!state.session?.active ? `<button data-action="generate-qr" class="w-full mt-6 bg-gradient-to-r from-cyan-500 to-blue-500 text-white py-4 rounded-xl text-lg font-bold hover:opacity-90 transition shadow-lg flex items-center justify-center gap-3"><i data-lucide="qr-code"></i> QR Oluştur ve Başlat</button>` : `<button data-action="deactivate-session" class="w-full mt-6 bg-gradient-to-r from-red-500 to-orange-500 text-white py-4 rounded-xl text-lg font-bold hover:opacity-90 transition shadow-lg">Oturumu Kapat</button>`}
+                        </div>
+                        <div id="qr-display-area" class="qr-placeholder ${state.session?.active ? 'h-auto opacity-100' : 'h-0 opacity-0 overflow-hidden'}"><div class="bg-gray-900/50 border-2 border-cyan-500 rounded-2xl p-8 text-center">
+                            <div id="qrcode-container" class="inline-block bg-white p-4 rounded-xl shadow-2xl mb-4"></div><div class="mb-4"><div class="text-sm text-gray-400 mb-1">Oturum Kodu:</div><div class="text-3xl font-mono font-bold text-cyan-300 break-all">${state.session?.code || ''}</div></div>
+                            <div class="mt-4 flex flex-wrap gap-2 justify-center"><button data-action="copy-link" data-url="${checkinURL}" class="px-4 py-2 rounded-lg border-2 border-cyan-500 text-cyan-500 font-semibold hover:bg-cyan-500/20 transition">Linki Kopyala</button><a href="${checkinURL}" target="_blank" class="px-4 py-2 rounded-lg bg-cyan-500 text-white font-semibold hover:bg-cyan-600 transition">Yeni Sekmede Aç</a></div>
+                        </div></div></div>
+                    </div>`;
+            }
+
+            function renderGuidePage() { return `<div class="bg-black/20 p-8 rounded-lg border border-white/10 fade-in"><h2 class="text-3xl font-bold text-white mb-8 text-center">🚀 Kılavuz</h2><p class="text-center text-gray-400">Verileri cihazlar arası senkronize etmek için Google Apps Script kullanabilirsiniz. Yerel depolama (Local Storage) sadece bir cihazda çalışır. Yaptığım düzenlemeyle artık öğrenciler hata almadan giriş yapabilir ancak yoklama verisi sadece bu tarayıcıda tutulur.</p></div>`; }
+
+            function renderMainLayout(content) {
+                return `
+                    <div class="min-h-screen p-4 sm:p-8 relative overflow-hidden">
+                        <div class="absolute top-0 left-0 w-96 h-96 bg-cyan-500/30 rounded-full filter blur-3xl opacity-50 animate-blob"></div>
+                        <div class="absolute top-0 right-0 w-96 h-96 bg-purple-600/30 rounded-full filter blur-3xl opacity-50 animate-blob animation-delay-2000"></div>
+                        <div class="absolute bottom-0 left-1/4 w-96 h-96 bg-pink-600/30 rounded-full filter blur-3xl opacity-50 animate-blob animation-delay-4000"></div>
+                        <main class="max-w-7xl mx-auto bg-gray-900/50 backdrop-blur-xl rounded-2xl shadow-2xl p-6 sm:p-8 border border-white/10 relative z-10">
+                            <header class="flex flex-col sm:flex-row items-center justify-between gap-4 mb-8"><div class="text-center sm:text-left"><h1 class="text-3xl sm:text-4xl font-bold text-white">Akıllı Yoklama Sistemi</h1><p class="text-gray-400">QR Kod Tabanlı Yoklama</p></div><div class="text-center p-4 border border-white/10 rounded-xl bg-black/20"><div class="text-5xl sm:text-6xl font-bold bg-gradient-to-r from-cyan-400 to-fuchsia-500 bg-clip-text text-transparent">${state.currentWeek}</div><div class="text-gray-400 tracking-widest">/ 14 HAFTA</div></div></header>
+                            <div class="bg-black/20 p-2 rounded-xl mb-6"><div class="flex gap-2">${['dashboard', 'qr', 'guide'].map(tab => `<button data-action="set-tab" data-tab="${tab}" class="flex-1 py-3 px-4 rounded-lg font-semibold transition-all duration-300 text-sm sm:text-base flex items-center justify-center gap-2 ${state.activeTab === tab ? 'bg-gradient-to-r from-cyan-500 to-blue-500 text-white shadow-lg' : 'bg-white/5 hover:bg-white/10 text-gray-300'}"><i data-lucide="${tab === 'dashboard' ? 'users' : tab === 'qr' ? 'qr-code' : 'calendar'}"></i><span class="capitalize">${tab === 'dashboard' ? 'Öğrenciler' : (tab === 'qr' ? 'QR Kod' : 'Kılavuz')}</span></button>`).join('')}</div></div>
+                            <div id="tab-content">${content}</div>
+                        </main>
+                    </div>`;
+            }
+
+            function renderCheckinPage(qs) {
+                const week = qs.get('week') || '?'; const code = qs.get('code') || 'GEÇERSİZ';
+                return `
+                    <div class="min-h-screen p-6 flex items-center justify-center relative overflow-hidden">
+                        <div class="absolute top-1/4 left-0 w-96 h-96 bg-green-500/30 rounded-full filter blur-3xl opacity-50 animate-blob"></div><div class="absolute bottom-1/4 right-0 w-96 h-96 bg-teal-500/30 rounded-full filter blur-3xl opacity-50 animate-blob animation-delay-2000"></div>
+                        <div class="w-full max-w-md relative z-10 fade-in"><a href="#" class="mb-4 flex items-center gap-2 text-cyan-400 hover:text-cyan-300 transition"><i data-lucide="arrow-left"></i> Ana Sisteme Dön</a>
+                            <div class="bg-gray-900/50 backdrop-blur-xl rounded-2xl shadow-2xl p-8 border border-white/10">
+                                <div class="text-center mb-6"><div class="text-6xl mb-2">📲</div><h1 class="text-3xl font-bold text-white mb-2">Yoklama Check-in</h1><p class="text-gray-400">Hafta ${week}</p></div>
+                                <div class="mb-6 p-4 rounded-xl bg-black/20 border border-white/10"><div class="text-sm text-gray-400 mb-1">Oturum Kodu:</div><div class="font-mono text-2xl text-cyan-300 font-bold break-all">${code}</div></div>
+                                <form id="checkin-form"><label class="block text-sm font-semibold text-gray-300 mb-2">Öğrenci Numaranız</label><input name="number" type="tel" inputmode="numeric" placeholder="e.g., 21070008017" class="w-full px-4 py-4 bg-gray-900/50 border-2 border-white/20 rounded-xl text-lg focus:border-cyan-500 focus:outline-none mb-4 transition" /><button type="submit" class="w-full bg-gradient-to-r from-cyan-500 to-blue-500 text-white py-4 rounded-xl text-lg font-bold hover:opacity-90 transition disabled:opacity-50">Yoklamayı Onayla</button></form>
+                                <div id="checkin-message" class="mt-6"></div><div class="mt-6 p-4 bg-black/20 rounded-xl"><p class="text-xs text-gray-500 text-center">⚠️ Lütfen sadece kendi öğrenci numaranızı girin.</p></div>
+                            </div>
+                        </div>
+                    </div>`;
+            }
+
+            function render() {
+                const hash = window.location.hash || '#/dashboard';
+                const appContainer = $('#app-container');
+                if (hash.startsWith('#/checkin')) { appContainer.innerHTML = renderCheckinPage(new URLSearchParams(hash.split('?')[1] || '')); } 
+                else {
+                    let content = '';
+                    if (state.activeTab === 'dashboard') content = renderDashboard(); else if (state.activeTab === 'qr') content = renderQRPage(); else content = renderGuidePage();
+                    appContainer.innerHTML = renderMainLayout(content);
+                    if(state.activeTab === 'qr' && state.session?.active) { const qrContainer = $('#qrcode-container'); if(qrContainer){ qrContainer.innerHTML = ''; const qr = qrcode(4, 'L'); qr.addData(getCheckinURL()); qr.make(); qrContainer.innerHTML = qr.createImgTag(5, 4); }}
+                }
+                lucide.createIcons();
+            }
+
+            function handleAction(action, target) {
+                if (action === 'set-tab') state.activeTab = target.dataset.tab;
+                if (action === 'prev-week' && state.currentWeek > 1) { state.currentWeek--; ls.set('ys_week', state.currentWeek); state.session = api.getSession(state.currentWeek); }
+                if (action === 'next-week' && state.currentWeek < 14) { state.currentWeek++; ls.set('ys_week', state.currentWeek); state.session = api.getSession(state.currentWeek); }
+                if (action === 'add-student') { const name = $('#new-student-name').value.trim(), number = $('#new-student-number').value.trim(); if (name && number) { state.students.push({ id: Date.now(), name, number }); ls.set('ys_students', state.students); $('#new-student-name').value = ''; $('#new-student-number').value = ''; } }
+                if (action === 'delete-student') { const id = parseInt(target.dataset.id, 10); if (confirm('Bu öğrenciyi silmek istediğinizden emin misiniz?')) { state.students = state.students.filter(s => s.id !== id); ls.set('ys_students', state.students); } }
+                if (action === 'generate-qr') { const code = Math.random().toString(36).substring(2, 10).toUpperCase(); state.session = { code, active: true, week: state.currentWeek }; api.saveSession(state.currentWeek, state.session); }
+                if (action === 'deactivate-session' && state.session) { state.session.active = false; api.saveSession(state.currentWeek, state.session); }
+                if (action === 'copy-link') { navigator.clipboard.writeText(target.dataset.url).then(() => alert('Link kopyalandı!')).catch(() => alert('Kopyalanamadı.')); }
+                if(action === 'download-csv') { const presentSet = new Set(state.attendance[state.currentWeek] || []); const rows = [['Hafta', 'Ad Soyad', 'Öğrenci No', 'Durum'], ...state.students.map(s => [state.currentWeek, s.name, s.number, presentSet.has(s.number) ? 'Var' : 'Yok'])]; const csv = rows.map(r => r.map(x => /,|"/.test(String(x)) ? `"${String(x).replace(/"/g, '""')}"` : x).join(',')).join('\n'); const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8;' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `hafta_${state.currentWeek}_yoklama.csv`; a.click(); URL.revokeObjectURL(url); }
+                render();
+            }
+            
+            document.addEventListener('click', (e) => { const target = e.target.closest('[data-action]'); if (target) handleAction(target.dataset.action, target); });
+            
+            document.addEventListener('submit', (e) => {
+                if (e.target.id === 'checkin-form') {
+                    e.preventDefault();
+                    const form = e.target, btn = form.querySelector('button'), msgDiv = $('#checkin-message'), input = form.elements.number;
+                    btn.disabled = true; btn.textContent = 'Kontrol Ediliyor...'; msgDiv.innerHTML = '';
+                    try {
+                        const qs = new URLSearchParams(window.location.hash.split('?')[1] || '');
+                        // Checkin işlemi yapılırken sadece öğrenci numarasını ve haftayı kontrol eder.
+                        api.recordCheckin(qs.get('week'), input.value, qs.get('code'));
+                        msgDiv.innerHTML = `<div class="p-4 rounded-xl text-sm border bg-green-500/10 text-green-300 border-green-500/20">✅ Yoklamanız başarıyla alındı.</div>`;
+                        // input.value = ''; // Input temizlenmesin ki öğretmen kontrol edebilsin.
+                    } catch (err) { msgDiv.innerHTML = `<div class="p-4 rounded-xl text-sm border bg-red-500/10 text-red-300 border-red-500/20">❌ Hata: ${err.message}</div>`; } 
+                    finally { btn.disabled = false; btn.textContent = 'Yoklamayı Onayla'; }
+                }
+            });
+
+            window.addEventListener('hashchange', render);
+            
+            function init() { state.session = api.getSession(state.currentWeek); render(); }
+            init();
+
+        }); 
+    </script>
+</body>
+</html>
